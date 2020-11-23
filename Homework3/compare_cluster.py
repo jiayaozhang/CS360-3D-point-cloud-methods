@@ -17,6 +17,7 @@ from itertools import cycle, islice
 
 from KMeans import K_Means
 from GMM import GMM
+from SpectralClustering import SpectralClustering
 
 np.random.seed(0)
 
@@ -70,9 +71,10 @@ datasets = [
     (varied, {'eps': .18, 'n_neighbors': 2,
               'min_samples': 5, 'xi': 0.035, 'min_cluster_size': .2}),
     (aniso, {'eps': .15, 'n_neighbors': 2,
-             'min_samples': 20, 'xi': 0.1, 'min_cluster_size': .2}),
+              'min_samples': 20, 'xi': 0.1, 'min_cluster_size': .2}),
     (blobs, {}),
-    (no_structure, {})]
+    (no_structure, {})
+    ]
 
 
 # 一共两层循环，实现每个仿真数据被每种聚类算法调用以此
@@ -103,8 +105,17 @@ for i_dataset, (dataset, algo_params) in enumerate(datasets):
     # 初始化所有聚类算法
     # ============
     # 自编的K-Means、GMM算法
-    my_kmeans = K_Means(n_clusters=params['n_clusters'])
-    my_gmm = GMM(n_clusters=params['n_clusters'])
+    my_kmeans0 = K_Means(n_clusters=params['n_clusters'], fit_method=0)
+    my_kmeans1 = K_Means(n_clusters=params['n_clusters'], fit_method=1)
+    my_kmeans2 = K_Means(n_clusters=params['n_clusters'], fit_method=2)
+    my_kmeans3 = K_Means(n_clusters=params['n_clusters'], fit_method=3)
+    my_gmm = GMM(n_clusters=params['n_clusters'], dim = X.shape[1])
+    my_spectral_knn_reciprocal_normalized = SpectralClustering(n_clusters=params['n_clusters'], nnk=50)
+    my_spectral_radius_reciprocal_normalized = SpectralClustering(n_clusters=params['n_clusters'], use_radius_nn = True, nnradius=1)
+    my_spectral_knn_gauss05_normalized = SpectralClustering(n_clusters=params['n_clusters'], nnk=50, use_gauss_dist=True)
+    my_spectral_knn_gauss005_normalized = SpectralClustering(n_clusters=params['n_clusters'], nnk=50, use_gauss_dist=True, gauss_sigma=5e-2)
+    my_spectral_knn_reciprocal_unnormalized = SpectralClustering(n_clusters=params['n_clusters'], nnk=50, normalized=False)
+    
     # sklearn中自带的算法
     ms = cluster.MeanShift(bandwidth=bandwidth, bin_seeding=True)
     two_means = cluster.MiniBatchKMeans(n_clusters=params['n_clusters'])
@@ -124,12 +135,25 @@ for i_dataset, (dataset, algo_params) in enumerate(datasets):
         linkage="average", affinity="cityblock",
         n_clusters=params['n_clusters'], connectivity=connectivity)
     birch = cluster.Birch(n_clusters=params['n_clusters'])
+    # 屏蔽开始
+    kmeans = cluster.KMeans(n_clusters=params['n_clusters'])
+    # 屏蔽结束
     gmm = mixture.GaussianMixture(
         n_components=params['n_clusters'], covariance_type='full')
     
     clustering_algorithms = (
-        ('My_KMeans', my_kmeans),
+        # ('My_KMeans slowest', my_kmeans0),
+        # ('My_KMeans slow', my_kmeans1),
+        # ('My_KMeans fast', my_kmeans2),
+        ('My_KMeans fastest', my_kmeans3),
         ('My_GMM', my_gmm),
+        ('My_SpectralClustering_best', my_spectral_knn_reciprocal_normalized),
+        # ('My_SpectralClustering_radius', my_spectral_radius_reciprocal_normalized),
+        # ('My_SpectralClustering_gauss0.5', my_spectral_knn_gauss05_normalized),
+        # ('My_SpectralClustering_gauss0.05', my_spectral_knn_gauss005_normalized),
+        # ('My_SpectralClustering_unnormalized', my_spectral_knn_reciprocal_unnormalized),
+        ('KMeans', kmeans),
+        ('GaussianMixture', gmm),
         ('MiniBatchKMeans', two_means),
         ('AffinityPropagation', affinity_propagation),
         ('MeanShift', ms),
@@ -138,8 +162,7 @@ for i_dataset, (dataset, algo_params) in enumerate(datasets):
         ('AgglomerativeClustering', average_linkage),
         ('DBSCAN', dbscan),
         ('OPTICS', optics),
-        ('Birch', birch),
-        ('GaussianMixture', gmm)
+        ('Birch', birch)
     )
 
     # 此处是内层循环，遍历每种算法
@@ -167,15 +190,18 @@ for i_dataset, (dataset, algo_params) in enumerate(datasets):
             y_pred = algorithm.labels_.astype(np.int)
         else:
             y_pred = algorithm.predict(X)
+        print("y_pred", y_pred)
 
         plt.subplot(len(datasets), len(clustering_algorithms), plot_num)
         if i_dataset == 0:
             plt.title(name, size=7)
 
+        print(name)
         colors = np.array(list(islice(cycle(['#377eb8', '#ff7f00', '#4daf4a',
                                              '#f781bf', '#a65628', '#984ea3',
                                              '#999999', '#e41a1c', '#dede00']),
                                       int(max(y_pred) + 1))))
+        print(colors)
         # add black color for outliers (if any)
         colors = np.append(colors, ["#000000"])
         plt.scatter(X[:, 0], X[:, 1], s=10, color=colors[y_pred])
