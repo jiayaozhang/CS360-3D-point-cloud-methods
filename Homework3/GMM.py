@@ -8,38 +8,135 @@ import random,math
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 from scipy.stats import multivariate_normal
+from tqdm import tqdm
 plt.style.use('seaborn')
 
+
 class GMM(object):
-    def __init__(self, n_clusters, max_iter=50):
+    def __init__(self, n_clusters, dim = 2, max_iter=50, tolerance=0.001):
+        # how to choose tolerance value?
         self.n_clusters = n_clusters
         self.max_iter = max_iter
-    
-    # 屏蔽开始
-    # 更新W
-    
-
-    # 更新pi
- 
+        self.dim = dim
         
-    # 更新Mu
-
-
-    # 更新Var
-
-
-    # 屏蔽结束
+        # 屏蔽开始
+        # 更新W
+        
+        # 更新pi
+        self.weights = np.ones(n_clusters)/n_clusters
+        
+        # 更新Mu
+        self.means = np.random.random((n_clusters, self.dim))
+        
+        # 更新Var
+        """
+        GMM.py:45: RuntimeWarning: invalid value encountered in double_scalars
+          (1/pow(np.linalg.det(self.covs[j]), 0.5)) * \
+        numpy\linalg\linalg.py:2116: RuntimeWarning: invalid value encountered in det
+          r = _umath_linalg.det(a, signature=signature)
+        """
+        # self.covs = np.random.random((n_clusters, self.dim, self.dim))
+        self.covs = np.array(n_clusters * [np.identity(self.dim)])
+        
+        self.tolerance = tolerance 
+        
+        # print("weights", self.weights)
+        # print("means", self.means)
+        # print("covs", self.covs)
+        # print("covs det", np.linalg.det(self.covs[0]))
+        # print("covs det sqrt", pow(np.linalg.det(self.covs[0]), 0.5))
+        
+        # 屏蔽结束
+    
+    def _gauss(self, j, datum):
+        # j: the id of gaussian model
+        # datum: we need to calculate the prob of datum in this model
+        # print("j", j)
+        # print("cov", self.covs[j])
+        # print("det", np.linalg.det(self.covs[j]))
+        # print("inv", np.linalg.inv(self.covs[j]))
+        return 1/pow(2*np.pi, self.dim/2) * \
+            (1/pow(np.linalg.det(self.covs[j]), 0.5)) * \
+            np.exp(-1/2*np.dot(np.dot((datum-self.means[j]).T, 
+                               np.linalg.inv(self.covs[j])),
+                               (datum-self.means[j])))
     
     def fit(self, data):
         # 作业3
         # 屏蔽开始
-
-
+        
+        N = data.shape[0]
+        last_log_likelihood = float("-inf")
+        
+        for cur_iter in range(self.max_iter): 
+            # print("iter", cur_iter)
+            # E-step: calculate posterior probability
+            
+            # posterior probability
+            post_probs = np.zeros((N, self.n_clusters))
+            
+            for i, datum in enumerate(data):
+                for j in range(self.n_clusters):
+                    # pdf_official = multivariate_normal.pdf(datum, 
+                    #     mean=self.means[j], cov=self.covs[j])
+                    # print("pdf official:", pdf_official)
+                    # print("pdf self:", self._gauss(j, datum))
+                    # assert(np.allclose(pdf_official, self._gauss(j, datum)))
+                    post_probs[i][j] = self.weights[j]*self._gauss(j, datum)
+                
+                post_probs[i] /= post_probs[i].sum()
+    
+            # M-step: update weights, means and covs
+            for j in range(self.n_clusters):
+                N_j = post_probs[:,j].sum()
+                # view post_probs[:,j] as vector and data as matrix
+                # calculate their dot product
+                
+                # method 1
+                self.means[j] = np.zeros(self.dim)
+                for i, datum in enumerate(data):
+                    self.means[j] += post_probs[i][j] * datum
+                self.means[j] /= N_j
+                
+                # method 2
+                #self.means[j] = post_probs[:,j].dot(data) / N_j
+                
+                self.covs[j] = np.zeros((self.dim, self.dim))
+                for i in range(N):
+                    diff = np.array([data[i] - self.means[j]])
+                    # print(diff.dot(diff.T))
+                    # print(np.matmul(diff.T, diff))
+                    self.covs[j] += post_probs[i][j] * \
+                        np.matmul(diff.T, diff)
+                        # (data[i] - self.means[j]).dot((data[i] - self.means[j]).T)
+                self.covs[j] /= N_j
+                
+                self.weights[j] = N_j/N
+                
+            log_likelihood = 0
+            for i in range(N):
+                tmp = 0
+                for j in range(self.n_clusters):
+                    tmp += self.weights[j] * self._gauss(j, data[i])
+                log_likelihood += np.log(tmp)
+            
+            # print(cur_iter, "'s log likelihood:", log_likelihood)
+            # if log_likelihood - last_log_likelihood < self.tolerance:
+            #     break
+            last_log_likelihood = log_likelihood
         # 屏蔽结束
     
     def predict(self, data):
         # 屏蔽开始
-
+        N = data.shape[0]
+        post_probs = np.zeros((N, self.n_clusters))
+            
+        for i, datum in enumerate(data):
+            for j in range(self.n_clusters):
+                post_probs[i][j] = self.weights[j]*self._gauss(j, datum)
+            post_probs[i] /= post_probs[i].sum()
+        
+        return np.argmax(post_probs, axis=1)
         # 屏蔽结束
 
 # 生成仿真数据
