@@ -1,0 +1,15 @@
+{
+  "train": [
+    "cyclist/856.json",
+    "genobj/2191.json",
+    "ped/2191.json",
+    "car/3992.json"
+  ],
+  "val": [],
+  "test": [
+    "cyclist/114.json",
+    "genobj/856.json",
+    "ped/856.json",
+    "car/17895.json"
+  ]
+}
